@@ -136,6 +136,7 @@ cluster. Neither runs the other repository's Terraform.
 | Path | What it is |
 | --- | --- |
 | `adr/0001-chart-lives-with-the-application.md` | Why an application's Helm chart lives in the application repository, versioned with the code, and its deploy repository holds environments only. With the reference documents that were checked |
+| `adr/0002-schema-migrations-run-as-a-pre-sync-hook.md` | Who runs database migrations once the build is no longer the deploy: a Job in the application's chart that Argo CD runs before the rest of the sync, under a migrator identity separate from the application's |
 | `runbooks/feature-development.md` | A feature from branch to production: who does what, which file changes, pull-request environments, promotion, rollback as a commit, and the night-time configuration change |
 | `layout.md` | The repositories and the cluster drawn at scale: eight applications, branches and pull requests in flight, and who writes which file |
 
