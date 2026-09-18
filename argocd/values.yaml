@@ -50,6 +50,18 @@ server:
       cpu: 50m
       memory: 128Mi
 
+  # Keep serving while the load balancer lets go. When a pod is removed, Kubernetes signals the
+  # container at once, but the load balancer learns the endpoint is gone about twelve seconds
+  # later and keeps sending requests to it until then, which it answers with
+  # "unconditional drop overload". This step runs before the signal and holds the container up
+  # for that window. The way in is already covered: GKE gates a new pod's readiness on the load
+  # balancer's own health check passing. This is the way out. Fifteen seconds, inside the
+  # thirty-second grace period the chart sets.
+  lifecycle:
+    preStop:
+      exec:
+        command: ["sleep", "15"]
+
 controller:
   resources:
     requests:
