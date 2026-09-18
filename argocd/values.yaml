@@ -1,0 +1,78 @@
+# Argo CD's own configuration, read by the Application in apps/argocd.yaml.
+#
+# Terraform installs the same chart with these same values once, to bootstrap. After that this
+# file is the source of truth: Argo CD applies it to itself, so changing Argo CD is a commit here.
+
+global:
+  # The name Argo CD knows itself by. Used in the login redirect and in links it generates.
+  domain: argocd.dev.gcp.kavoori.com
+
+configs:
+  params:
+    # TLS ends at the load balancer. The server serves plain HTTP behind it and does not try to
+    # redirect to its own HTTPS, which would loop.
+    server.insecure: true
+  cm:
+    # Where to send a browser back to after login, and the address the command-line tool uses.
+    url: https://argocd.dev.gcp.kavoori.com
+
+# Dex is Argo CD's built-in identity broker, needed for GitHub login. Google login talks to Argo
+# CD directly and does not need it, so it stays off until there is a reason to run it.
+dex:
+  enabled: false
+
+# Notifications are a separate controller with its own configuration. Off until wanted.
+notifications:
+  enabled: false
+
+# The ApplicationSet controller, which will generate one Application per branch, is always
+# installed by this chart version and needs no switch.
+
+server:
+  # Requests are what the scheduler uses to place the pod. Small, because this cluster is small.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# The root Application: the one object that makes Argo CD read this repository. It points at
+# apps/, and every other Application is a file there. Defined here, in the chart's values, so
+# that the Terraform bootstrap and Argo CD's self-management render it identically and Argo CD
+# takes it over from the bootstrap without a difference to reconcile.
+extraObjects:
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: root
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kavoori/gcp-platform.git
+        targetRevision: main
+        path: apps
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

@@ -1,0 +1,22 @@
+# Provider binaries and module copies downloaded by `terraform init`. Rebuilt on every
+# machine; never committed.
+.terraform/
+
+# State lives in the GCS bucket, not on disk. A local state file appearing here means
+# something ran without the backend configured — and it would contain secrets.
+*.tfstate
+*.tfstate.*
+
+crash.log
+crash.*.log
+
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+.terraformrc
+terraform.rc
+
+# .terraform.lock.hcl is deliberately NOT ignored. It records the exact provider version
+# and checksums in use, and must be committed.

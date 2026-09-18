@@ -1,0 +1,65 @@
+# Argo CD's way in: two routes on the shared Gateway, and the health check the load balancer
+# uses for the Argo CD server.
+#
+# The argocd namespace is created by Terraform, with the label the Gateway requires, before
+# Argo CD exists to apply anything.
+---
+# HTTPS: the hostname decides that this route, and not another application's, gets the request.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: web
+      namespace: platform
+      sectionName: https
+  hostnames:
+    - argocd.dev.gcp.kavoori.com
+  rules:
+    - backendRefs:
+        # The Service the Argo CD chart creates. TLS ended at the load balancer, so the server
+        # is reached over plain HTTP; it runs in the mode that expects that.
+        - name: argocd-server
+          port: 80
+---
+# Plain HTTP gets a redirect, never a response.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-redirect
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: web
+      namespace: platform
+      sectionName: http
+  hostnames:
+    - argocd.dev.gcp.kavoori.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# What the load balancer probes to decide the server is healthy. Without this it probes "/",
+# which the Argo CD server answers with the login page and a 200, so it would work by accident.
+# Naming the real health endpoint makes it deliberate.
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  default:
+    config:
+      type: HTTP
+      httpHealthCheck:
+        portSpecification: USE_SERVING_PORT
+        requestPath: /healthz
+  targetRef:
+    group: ""
+    kind: Service
+    name: argocd-server

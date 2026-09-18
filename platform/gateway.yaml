@@ -1,0 +1,48 @@
+# The one load balancer every application shares.
+#
+# Applying this Gateway is what makes Google build the external load balancer. It binds to the
+# address Terraform reserved, serves the certificate map Terraform created, and answers for every
+# name under the environment's wildcard record. An application never creates a Gateway; it
+# creates an HTTPRoute in its own namespace that names this one, and the hostname on the route
+# decides which requests reach it.
+#
+# Routes may attach from any namespace that carries the label
+#   shared-gateway-access: "true"
+# Attaching is therefore opt-in and visible on the namespace, rather than open to everything.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: web
+  namespace: platform
+  annotations:
+    # The certificate map in kavoori-dev. The load balancer consults it to pick a certificate
+    # for the hostname presented, so no certificate or private key is in the cluster.
+    networking.gke.io/certmap: dev-certificates
+spec:
+  # A global external load balancer, terminating TLS at Google's edge worldwide.
+  gatewayClassName: gke-l7-global-external-managed
+
+  addresses:
+    - type: NamedAddress
+      # The reserved global address in kavoori-dev that the wildcard DNS record points at.
+      value: dev-gateway
+
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"

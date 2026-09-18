@@ -1,0 +1,6 @@
+# The namespace the cluster's shared pieces live in. Owned by the platform, not by any
+# application.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform

@@ -1,0 +1,24 @@
+# The platform namespace and the shared Gateway, from platform/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+  finalizers:
+    # Deleting this Application deletes what it created. Without this, deleting it would orphan
+    # the Gateway, and the load balancer behind it would keep billing.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kavoori/gcp-platform.git
+    targetRevision: main
+    path: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      # Apply commits as they land, and revert anything changed by hand in the cluster.
+      prune: true
+      selfHeal: true

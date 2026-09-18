@@ -1,0 +1,45 @@
+# Argo CD managing its own installation.
+#
+# Two sources: the chart from Argo's chart repository at a pinned version, and the values from
+# this repository. Upgrading Argo CD is changing targetRevision here; changing its settings is
+# editing argocd/values.yaml. Terraform installed the first copy with the same chart and values;
+# this Application takes over the objects it created, by name, and keeps them in sync from here.
+#
+# The route and health check in argocd/ are a third source, plain YAML from this repository.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.9.2
+      helm:
+        # Must match the release name Terraform used, so the object names line up:
+        # argocd-server, argocd-repo-server, and so on.
+        releaseName: argocd
+        valueFiles:
+          - $values/argocd/values.yaml
+    - repoURL: https://github.com/kavoori/gcp-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/kavoori/gcp-platform.git
+      targetRevision: main
+      path: argocd
+      directory:
+        # values.yaml in that directory is Helm input, not a Kubernetes object.
+        exclude: values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The chart's custom resource definitions are larger than the annotation Kubernetes uses
+      # for client-side apply can hold. Server-side apply has no such limit.
+      - ServerSideApply=true
