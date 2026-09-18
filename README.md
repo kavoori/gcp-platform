@@ -49,9 +49,11 @@ that applies the rest. The order in which things come to exist:
      `terraform-gcp` created. The add-on's operator then starts the controller in `cnrm-system`.
 
 4. **From here, git is the only input.** A commit to `argocd/values.yaml` changes Argo CD. A new
-   file in `apps/` adds a platform component. Anything changed in the cluster by hand is put
-   back within minutes, because every Application here has self-heal on. Terraform is not run
-   again unless the cluster is rebuilt, and then it does step 2 again from nothing.
+   file in `apps/` adds a platform component. GitHub tells Argo CD about each push through the
+   App's webhook, so a commit is applied within seconds; without the webhook Argo CD would
+   find it at its next poll, up to three minutes later. Anything changed in the cluster by hand
+   is put back within minutes, because every Application here has self-heal on. Terraform is
+   not run again unless the cluster is rebuilt, and then it does step 2 again from nothing.
 
 Step 3 has one moment worth understanding. `apps/argocd.yaml` makes Argo CD manage its own
 installation. It does not manage `root`: that object belongs to Terraform, carries a different

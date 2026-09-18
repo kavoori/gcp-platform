@@ -206,7 +206,7 @@ Estimation:
   RequestStaleAfter: "00:15:00"
 ```
 
-Argo CD applies it within minutes. The override wins over the image's default, the pods roll,
+Argo CD applies it within seconds of the push. The override wins over the image's default, the pods roll,
 production reads fifteen minutes. Reverting the rollback is deleting those lines.
 
 ### Roll the version back
