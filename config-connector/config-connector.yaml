@@ -1,0 +1,26 @@
+# How Config Connector behaves: which mode, and which Google identity it acts as.
+#
+# The add-on, switched on by terraform-gcp in the cluster resource, installs an operator and
+# then waits for this one object. Its name is fixed by Google and there can only be one. The
+# operator creates a default one itself, in namespaced mode with no identity, the moment the
+# add-on starts. This file takes that object over and sets what was decided in terraform-gcp's
+# ADR 0003.
+#
+# Cluster mode: one controller, one identity, for every namespace. What that identity may do is
+# the short list of roles Terraform granted it, and the objects a chart may create are the short
+# list Argo CD's application project allows. Every application namespace carries the annotation
+#   cnrm.cloud.google.com/project-id: <project>
+# so the controller knows where to create things; without it, objects sit unready with a
+# message saying so.
+apiVersion: core.cnrm.cloud.google.com/v1beta1
+kind: ConfigConnector
+metadata:
+  name: configconnector.core.cnrm.cloud.google.com
+spec:
+  mode: cluster
+  # Created by terraform-gcp, modules/environment/config-connector.tf. The controller's
+  # Kubernetes service account in cnrm-system is bound to it through Workload Identity.
+  googleServiceAccount: dev-config-connector@kavoori-dev.iam.gserviceaccount.com
+  # Do not copy fields Google filled in back into the object's spec. Without this, every
+  # reconciled object grows defaults it never declared, and Argo CD reports each as drift.
+  stateIntoSpec: Absent

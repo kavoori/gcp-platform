@@ -33,8 +33,8 @@ that applies the rest. The order in which things come to exist:
       cluster before installing any, and an Argo CD object is a kind that does not exist until
       step 3 has installed Argo CD's definitions.
 
-3. **Argo CD starts, finds `root`, and reads `apps/`.** It finds two more `Application` objects
-   there and applies them. This is the pattern Argo CD calls "app of apps": one Application whose
+3. **Argo CD starts, finds `root`, and reads `apps/`.** It finds three more `Application`
+   objects there and applies them. This is the pattern Argo CD calls "app of apps": one Application whose
    contents are other Applications.
    - `apps/platform.yaml` tells Argo CD to apply the `platform/` directory. That creates the
      `platform` namespace and the Gateway. Google sees the Gateway and builds the load balancer,
@@ -44,6 +44,9 @@ that applies the rest. The order in which things come to exist:
      exactly what Terraform installed a minute earlier, so Argo CD finds its own objects already
      present and matching, and takes ownership of them. The plain files add Argo CD's route on
      the Gateway and the load balancer's health check for it.
+   - `apps/config-connector.yaml` tells Argo CD to apply the `config-connector/` directory: the
+     one object that puts the Config Connector add-on into cluster mode acting as the identity
+     `terraform-gcp` created. The add-on's operator then starts the controller in `cnrm-system`.
 
 4. **From here, git is the only input.** A commit to `argocd/values.yaml` changes Argo CD. A new
    file in `apps/` adds a platform component. Anything changed in the cluster by hand is put
@@ -93,6 +96,22 @@ nothing else.
 | --- | --- |
 | `platform.yaml` | The `platform/` directory, into the `platform` namespace. Has a finalizer so that deleting the Application deletes the Gateway rather than orphaning the load balancer behind it |
 | `argocd.yaml` | Three sources at once: the Argo CD chart at a pinned version from Argo's chart repository, `argocd/values.yaml` from here as the chart's input, and the plain files in `argocd/` from here. This is Argo CD managing itself |
+| `config-connector.yaml` | The `config-connector/` directory. Has a finalizer, so deleting it hands the object back to the operator's default rather than orphaning it. Server-side apply, because the operator created the object first and owns its fields |
+
+### `config-connector/` — how the Config Connector add-on behaves
+
+One object. Config Connector is the controller that turns Kubernetes objects such as
+`PubSubTopic` into the Google resources they describe, so that an application's chart can carry
+its own Google resources and a branch environment is self-contained. `terraform-gcp` switches
+the add-on on and creates the identity it acts as; this directory tells it which mode to run in
+and which identity that is. Applied by `apps/config-connector.yaml`.
+
+| File | What it is |
+| --- | --- |
+| `config-connector.yaml` | The `ConfigConnector` object, name fixed by Google: cluster mode, acting as `dev-config-connector`, and `stateIntoSpec: Absent` so Google's defaults never leak back into the objects it reconciles. Every namespace that holds Config Connector objects must carry the annotation `cnrm.cloud.google.com/project-id` naming the project |
+
+Why cluster mode, what the identity may and may not do, and the fences around a shared identity
+are in `terraform-gcp`'s ADR 0003.
 
 ### `platform/` — what every application shares
 

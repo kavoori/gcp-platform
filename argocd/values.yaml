@@ -16,6 +16,21 @@ configs:
     # Where to send a browser back to after login, and the address the command-line tool uses.
     url: https://argocd.dev.gcp.kavoori.com
 
+    # How Argo CD decides whether the ConfigConnector object is healthy. Argo CD ships a health
+    # check for most kinds it meets and calls anything else Healthy on sight. This object
+    # reports its own state in status.healthy, so Argo CD is told to read that; otherwise a
+    # controller that failed to start would still show green.
+    resource.customizations.health.core.cnrm.cloud.google.com_ConfigConnector: |
+      hs = {}
+      if obj.status ~= nil and obj.status.healthy == true then
+        hs.status = "Healthy"
+        hs.message = "operator reports healthy"
+        return hs
+      end
+      hs.status = "Progressing"
+      hs.message = "waiting for the operator to report healthy"
+      return hs
+
 # Dex is Argo CD's built-in identity broker, needed for GitHub login. Google login talks to Argo
 # CD directly and does not need it, so it stays off until there is a reason to run it.
 dex:
