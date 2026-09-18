@@ -1,0 +1,11 @@
+# A namespace that exists only to prove Config Connector works, and is deleted afterwards.
+#
+# The annotation is the one every namespace holding Config Connector objects must carry: it
+# names the project the objects are created in. Without it, an object sits unready with a
+# message saying the project is unknown.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: config-connector-proof
+  annotations:
+    cnrm.cloud.google.com/project-id: kavoori-dev
