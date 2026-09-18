@@ -1,0 +1,4 @@
+# Filled in by Terraform. Nothing here is a secret.
+repositoryURL: ""
+targetRevision: main
+path: apps

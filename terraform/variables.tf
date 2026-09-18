@@ -17,3 +17,9 @@ variable "github_app_key_revision" {
   default     = 1
   description = "Bump by one after adding a new key version in Secret Manager. Terraform resends a write-only value only when this changes."
 }
+
+variable "platform_repository_url" {
+  type        = string
+  default     = "https://github.com/kavoori/gcp-platform.git"
+  description = "This repository, as Argo CD clones it. HTTPS, because GitHub App credentials only work over HTTPS."
+}

@@ -49,13 +49,16 @@ resource "kubernetes_secret_v1" "github_app_credentials" {
   data_wo_revision = var.github_app_key_revision
 }
 
-# Argo CD itself, from the same values file its self-management Application reads. That file
-# also carries the root Application, under extraObjects, so the bootstrap and the git copy define
-# it identically and Argo CD takes it over without a difference to reconcile.
+# Argo CD itself, from the same values file its self-management Application reads, so the
+# bootstrap and the git copy define Argo CD identically and Argo CD takes over its own objects
+# without a difference to reconcile.
 resource "helm_release" "argocd" {
-  name       = "argocd"
-  namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
-  repository = "https://argoproj.github.io/argo-helm"
+  name      = "argocd"
+  namespace = kubernetes_namespace_v1.argocd.metadata[0].name
+  # The chart as an OCI artifact, the same chart Argo's own chart repository serves. Named this
+  # way, Helm fetches it directly and never consults the repository list on the machine running
+  # Terraform, so the bootstrap behaves the same on every machine.
+  repository = "oci://ghcr.io/argoproj/argo-helm"
   chart      = "argo-cd"
   version    = "10.9.2"
 
@@ -69,4 +72,32 @@ resource "helm_release" "argocd" {
   # The credential must exist before Argo CD's first attempt to read the repository, or the root
   # Application's first sync fails and waits for its retry.
   depends_on = [kubernetes_secret_v1.github_app_credentials]
+}
+
+# The root Application, as a second release. Helm checks every object in a release against the
+# cluster before installing any of them, and an Argo CD Application is a kind that does not exist
+# until the release above has installed Argo CD's definitions. So it cannot ride inside that
+# release; it follows it. Terraform owns this object; Argo CD's self-management does not manage
+# it, and it carries a different release label so Argo CD never mistakes it for its own.
+resource "helm_release" "root_application" {
+  name      = "argocd-root"
+  namespace = kubernetes_namespace_v1.argocd.metadata[0].name
+  chart     = "${path.module}/root-application"
+
+  set = [
+    {
+      name  = "repositoryURL"
+      value = var.platform_repository_url
+    }
+  ]
+
+  # On destroy, this release goes first, and Helm waits until the root Application is gone. It
+  # is gone only once Argo CD has deleted the Applications it created, and the platform one only
+  # once Google has taken the load balancer apart, which takes about five minutes. Argo CD is
+  # still running throughout, because its own release is destroyed after this one. Ten minutes
+  # leaves room for a slow load balancer teardown.
+  wait    = true
+  timeout = 600
+
+  depends_on = [helm_release.argocd]
 }

@@ -1,0 +1,28 @@
+# The root Application: the one object that makes Argo CD read the platform repository. It
+# points at the apps/ directory, and every other Application is a file there.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: {{ .Release.Namespace }}
+  finalizers:
+    # Deleting root deletes what it created: the Applications in apps/. Each of those then
+    # follows its own rule, so platform, which carries this same finalizer, takes the Gateway and
+    # the load balancer with it, and argocd, which does not, leaves Argo CD running to finish the
+    # job. Without this, a destroy would remove root alone and orphan the load balancer.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repositoryURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: {{ .Values.path | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Release.Namespace }}
+  syncPolicy:
+    automated:
+      # Apply commits as they land, delete Applications whose file is removed, and revert
+      # anything changed by hand.
+      prune: true
+      selfHeal: true

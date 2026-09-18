@@ -1,0 +1,5 @@
+apiVersion: v2
+name: root-application
+description: The one Argo CD Application that points Argo CD at the platform repository. Installed by Terraform after Argo CD itself, because an Argo CD object cannot be created in the same Helm release that installs Argo CD's definitions.
+type: application
+version: 1.0.0
