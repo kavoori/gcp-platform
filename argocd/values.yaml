@@ -52,27 +52,3 @@ redis:
     requests:
       cpu: 50m
       memory: 64Mi
-
-# The root Application: the one object that makes Argo CD read this repository. It points at
-# apps/, and every other Application is a file there. Defined here, in the chart's values, so
-# that the Terraform bootstrap and Argo CD's self-management render it identically and Argo CD
-# takes it over from the bootstrap without a difference to reconcile.
-extraObjects:
-  - apiVersion: argoproj.io/v1alpha1
-    kind: Application
-    metadata:
-      name: root
-      namespace: argocd
-    spec:
-      project: default
-      source:
-        repoURL: https://github.com/kavoori/gcp-platform.git
-        targetRevision: main
-        path: apps
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: argocd
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
