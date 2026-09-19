@@ -1,0 +1,10 @@
+# The two values that name this environment. Everything the platform chart renders derives
+# its names from them, the same way terraform-gcp derives every resource name from the
+# environment's name: <environment>-gateway, <environment>-certificates,
+# <environment>-config-connector. Both must match environments/<environment>/main.tf in
+# terraform-gcp, which created those resources.
+#
+# The scripts read this file too, so a name written here is written nowhere else in this
+# repository.
+environment: dev
+projectId: kavoori-dev

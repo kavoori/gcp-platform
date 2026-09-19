@@ -2,9 +2,13 @@
 #
 # Terraform installs the same chart with these same values once, to bootstrap. After that this
 # file is the source of truth: Argo CD applies it to itself, so changing Argo CD is a commit here.
+#
+# The hostname appears twice below, in global.domain and in configs.cm.url, and nowhere else in
+# this repository: the routes at the bottom read it from global.domain.
 
 global:
-  # The name Argo CD knows itself by. Used in the login redirect and in links it generates.
+  # The name Argo CD knows itself by. Used in the login redirect, in links it generates, and by
+  # the routes at the bottom of this file. The scripts read it from here.
   domain: argocd.dev.gcp.kavoori.com
 
 configs:
@@ -79,3 +83,114 @@ redis:
     requests:
       cpu: 50m
       memory: 64Mi
+
+# Not a setting the chart knows. Read by the routes below: the name of the Cloud Armor policy
+# terraform-gcp created for this environment, or empty for an environment that allows everyone.
+# When set, the load balancer refuses every request to Argo CD that the policy does not allow,
+# before it reaches the cluster.
+frontDoor:
+  securityPolicy: ""
+
+# Argo CD's way in: two routes on the shared Gateway, the health check the load balancer uses for
+# the Argo CD server, and, when the environment has one, the policy on who may reach it. Part of
+# Argo CD's own release, so they are installed at bootstrap and managed by apps/argocd.yaml
+# afterwards, and the hostname comes from global.domain above.
+#
+# Every field the Gateway API treats as a default is written out: group and kind on the parent
+# and the backend, the backend weight, and the match on path prefix "/". The controller fills
+# them in on the live object either way, and Argo CD compares the live object with what it
+# rendered, so a field left implicit here is a difference it reports forever.
+extraObjects:
+  # HTTPS: the hostname decides that this route, and not another application's, gets the request.
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: argocd
+      namespace: argocd
+    spec:
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: web
+          namespace: platform
+          sectionName: https
+      hostnames:
+        - "{{ .Values.global.domain }}"
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            # The Service this chart creates. TLS ended at the load balancer, so the server is
+            # reached over plain HTTP; it runs in the mode that expects that.
+            - group: ""
+              kind: Service
+              name: argocd-server
+              port: 80
+              weight: 1
+
+  # Plain HTTP gets a redirect, never a response.
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: argocd-redirect
+      namespace: argocd
+    spec:
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: web
+          namespace: platform
+          sectionName: http
+      hostnames:
+        - "{{ .Values.global.domain }}"
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          filters:
+            - type: RequestRedirect
+              requestRedirect:
+                scheme: https
+                statusCode: 301
+
+  # What the load balancer probes to decide the server is healthy. Without this it probes "/",
+  # which the Argo CD server answers with the login page and a 200, so it would work by accident.
+  # Naming the real health endpoint makes it deliberate.
+  - apiVersion: networking.gke.io/v1
+    kind: HealthCheckPolicy
+    metadata:
+      name: argocd-server
+      namespace: argocd
+    spec:
+      default:
+        config:
+          type: HTTP
+          httpHealthCheck:
+            portSpecification: USE_SERVING_PORT
+            requestPath: /healthz
+      targetRef:
+        group: ""
+        kind: Service
+        name: argocd-server
+
+  # Who may reach the server, decided at Google's edge. Rendered only when frontDoor.securityPolicy
+  # names a Cloud Armor policy; the policy itself is terraform-gcp's, and this is the Kubernetes
+  # object that attaches it to Argo CD's backend, the same split as the certificate map.
+  - |
+    {{- if .Values.frontDoor.securityPolicy }}
+    apiVersion: networking.gke.io/v1
+    kind: GCPBackendPolicy
+    metadata:
+      name: argocd-server
+      namespace: argocd
+    spec:
+      default:
+        securityPolicy: {{ .Values.frontDoor.securityPolicy }}
+      targetRef:
+        group: ""
+        kind: Service
+        name: argocd-server
+    {{- end }}

@@ -1,4 +1,5 @@
-# The platform namespace and the shared Gateway, from platform/.
+# What every application shares, rendered from the chart in platform/: the platform namespace,
+# the shared Gateway, and the object that tells the Config Connector add-on how to behave.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -6,13 +7,15 @@ metadata:
   namespace: argocd
   finalizers:
     # Deleting this Application deletes what it created. Without this, deleting it would orphan
-    # the Gateway, and the load balancer behind it would keep billing.
+    # the Gateway, and the load balancer behind it would keep billing. The ConfigConnector
+    # object goes too, and the add-on's operator then puts its own default back.
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: https://github.com/kavoori/gcp-platform.git
     targetRevision: main
+    # A Helm chart. Its values.yaml holds the two names everything here derives from.
     path: platform
   destination:
     server: https://kubernetes.default.svc
@@ -22,3 +25,8 @@ spec:
       # Apply commits as they land, and revert anything changed by hand in the cluster.
       prune: true
       selfHeal: true
+    syncOptions:
+      # The Config Connector operator creates the ConfigConnector object before Argo CD does,
+      # and owns its fields. Server-side apply lets Argo CD take those fields over rather than
+      # refuse the conflict.
+      - ServerSideApply=true

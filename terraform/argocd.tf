@@ -14,8 +14,8 @@ resource "kubernetes_namespace_v1" "argocd" {
   }
 }
 
-# The GitHub App's private key, read from Secret Manager in kavoori-shared. Ephemeral: the value
-# exists only while Terraform runs and is never written to state.
+# The GitHub App's private key, read from Secret Manager in the shared project. Ephemeral: the
+# value exists only while Terraform runs and is never written to state.
 ephemeral "google_secret_manager_secret_version" "github_app_key" {
   project = local.shared_project_id
   secret  = "argocd-github-app-private-key"
@@ -30,7 +30,7 @@ ephemeral "google_secret_manager_secret_version" "github_app_key" {
 # and Terraform resends the values only when github_app_key_revision changes.
 resource "kubernetes_secret_v1" "github_app_credentials" {
   metadata {
-    name      = "github-app-kavoori"
+    name      = "github-app-${local.github_owner}"
     namespace = kubernetes_namespace_v1.argocd.metadata[0].name
     labels = {
       "argocd.argoproj.io/secret-type" = "repo-creds"
@@ -41,7 +41,7 @@ resource "kubernetes_secret_v1" "github_app_credentials" {
 
   data_wo = {
     type                    = "git"
-    url                     = "https://github.com/kavoori"
+    url                     = "https://github.com/${local.github_owner}"
     githubAppID             = tostring(var.github_app_id)
     githubAppInstallationID = tostring(var.github_app_installation_id)
     githubAppPrivateKey     = ephemeral.google_secret_manager_secret_version.github_app_key.secret_data
@@ -63,6 +63,14 @@ resource "helm_release" "argocd" {
   version    = "10.9.2"
 
   values = [file("${path.module}/../argocd/values.yaml")]
+
+  # After the bootstrap, Argo CD applies this same values file to itself from git, and Terraform
+  # is not run again. So by the time this root is applied a second time, whether to recover from
+  # a bad values file or after the file has grown, the objects it renders already exist in the
+  # cluster, put there by Argo CD rather than by this release. Helm refuses to touch an object it
+  # did not create unless told it may take ownership. This is that permission, and it is what
+  # makes a second apply of this root the recovery path the README promises.
+  take_ownership = true
 
   # Wait for every Deployment to be ready before reporting success. Ten minutes covers a cold
   # cluster pulling every image.

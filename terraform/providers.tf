@@ -1,19 +1,31 @@
 # Three providers: Google to find the cluster and read the secret, and Kubernetes and Helm to
 # put things into the cluster.
 
+# What this root is called, and where it lives: the one place in terraform/ that names anything.
+# The scripts read these lines. Moving this root to another environment, project or GitHub
+# owner is an edit here, in backend.tf, which cannot read locals, and in ../platform/values.yaml,
+# which the platform chart reads.
 locals {
+  # The environment's name, the same one terraform-gcp's environments/<name>/ uses. Every
+  # resource name derives from it: the cluster is <name>-gke.
+  environment = "dev"
+
   project_id        = "kavoori-dev"
   shared_project_id = "kavoori-shared"
   region            = "us-east1"
-  cluster_name      = "dev-gke"
+
+  # The GitHub account or organization Argo CD reads repositories from.
+  github_owner = "kavoori"
+
+  cluster_name = "${local.environment}-gke"
 }
 
 provider "google" {
   project = local.project_id
   region  = local.region
 
-  # Charge every API call to kavoori-dev, including the read of the secret in kavoori-shared. That
-  # is why Secret Manager has to be switched on in kavoori-dev as well as in kavoori-shared.
+  # Charge every API call to the environment's project, including the read of the secret in the
+  # shared project. That is why Secret Manager has to be switched on in both.
   user_project_override = true
   billing_project       = local.project_id
 }

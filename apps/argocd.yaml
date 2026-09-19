@@ -5,7 +5,8 @@
 # editing argocd/values.yaml. Terraform installed the first copy with the same chart and values;
 # this Application takes over the objects it created, by name, and keeps them in sync from here.
 #
-# The route and health check in argocd/ are a third source, plain YAML from this repository.
+# Argo CD's own routes on the Gateway and its health check are part of the values, so they
+# belong to this Application too.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -26,12 +27,6 @@ spec:
     - repoURL: https://github.com/kavoori/gcp-platform.git
       targetRevision: main
       ref: values
-    - repoURL: https://github.com/kavoori/gcp-platform.git
-      targetRevision: main
-      path: argocd
-      directory:
-        # values.yaml in that directory is Helm input, not a Kubernetes object.
-        exclude: values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

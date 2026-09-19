@@ -15,17 +15,18 @@ metadata:
   name: web
   namespace: platform
   annotations:
-    # The certificate map in kavoori-dev. The load balancer consults it to pick a certificate
-    # for the hostname presented, so no certificate or private key is in the cluster.
-    networking.gke.io/certmap: dev-certificates
+    # The certificate map in the environment's project. The load balancer consults it to pick a
+    # certificate for the hostname presented, so no certificate or private key is in the cluster.
+    networking.gke.io/certmap: {{ .Values.environment }}-certificates
 spec:
   # A global external load balancer, terminating TLS at Google's edge worldwide.
   gatewayClassName: gke-l7-global-external-managed
 
   addresses:
     - type: NamedAddress
-      # The reserved global address in kavoori-dev that the wildcard DNS record points at.
-      value: dev-gateway
+      # The reserved global address in the environment's project that the wildcard DNS record
+      # points at.
+      value: {{ .Values.environment }}-gateway
 
   listeners:
     - name: https
