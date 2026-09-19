@@ -33,9 +33,9 @@ configs:
       clientSecret: $argocd-google-oauth:clientSecret
       requestedScopes: ["openid", "profile", "email"]
 
-    # The built-in admin account. On until a Google login has been seen to work; then "false",
-    # and the account, its password and its Secret stop existing.
-    admin.enabled: "true"
+    # The built-in admin account is off: Google is the only way in, and the account, its password
+    # and the Secret that held the generated password stop existing.
+    admin.enabled: "false"
 
     # How Argo CD decides whether the ConfigConnector object is healthy. Argo CD ships a health
     # check for most kinds it meets and calls anything else Healthy on sight. This object
