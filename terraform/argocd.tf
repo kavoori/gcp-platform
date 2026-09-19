@@ -49,6 +49,40 @@ resource "kubernetes_secret_v1" "github_app_credentials" {
   data_wo_revision = var.github_app_key_revision
 }
 
+# The client secret of the OAuth client Argo CD is registered with at Google, so that people log
+# in with their Google account. Read from Secret Manager in the shared project, ephemeral, never
+# in state.
+ephemeral "google_secret_manager_secret_version" "google_oauth_client_secret" {
+  project = local.shared_project_id
+  secret  = "argocd-google-oauth-client-secret"
+  version = "latest"
+}
+
+# Where Argo CD reads that secret from. Argo CD's own configuration names it as
+# $argocd-google-oauth:clientSecret, which Argo CD resolves against any Secret in its namespace
+# that carries the part-of label below. This keeps the value out of argocd-secret, which the
+# chart creates empty and Argo CD fills with its own session key, so nothing here competes with
+# Argo CD for that object.
+#
+# Write-only, like the GitHub App credential: nothing in this Secret enters state, and Terraform
+# resends the value only when google_oauth_client_secret_revision changes.
+resource "kubernetes_secret_v1" "google_oauth_client_secret" {
+  metadata {
+    name      = "argocd-google-oauth"
+    namespace = kubernetes_namespace_v1.argocd.metadata[0].name
+    labels = {
+      "app.kubernetes.io/part-of" = "argocd"
+    }
+  }
+
+  type = "Opaque"
+
+  data_wo = {
+    clientSecret = ephemeral.google_secret_manager_secret_version.google_oauth_client_secret.secret_data
+  }
+  data_wo_revision = var.google_oauth_client_secret_revision
+}
+
 # Argo CD itself, from the same values file its self-management Application reads, so the
 # bootstrap and the git copy define Argo CD identically and Argo CD takes over its own objects
 # without a difference to reconcile.
@@ -77,9 +111,13 @@ resource "helm_release" "argocd" {
   wait    = true
   timeout = 600
 
-  # The credential must exist before Argo CD's first attempt to read the repository, or the root
-  # Application's first sync fails and waits for its retry.
-  depends_on = [kubernetes_secret_v1.github_app_credentials]
+  # The credentials must exist before Argo CD starts: the GitHub one, or the root Application's
+  # first sync fails and waits for its retry; the Google one, or the server refuses to start
+  # because its login configuration names a secret it cannot find.
+  depends_on = [
+    kubernetes_secret_v1.github_app_credentials,
+    kubernetes_secret_v1.google_oauth_client_secret,
+  ]
 }
 
 # The root Application, as a second release. Helm checks every object in a release against the

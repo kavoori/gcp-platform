@@ -401,9 +401,15 @@ fi
 log "the $ENVIRONMENT platform is up and Argo CD is serving."
 log "  https://$ARGOCD_HOSTNAME"
 log ""
-log "Log in as admin with the password Argo CD generated at install, then change it and delete"
-log "the Secret. This script does not print the password."
-log "  kubectl --context=$ENVIRONMENT -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+# Which login the values file configures. With the admin account off, Google is the only way
+# in; with it on, Argo CD generated a password at install and nothing here prints it.
+if [[ "$(yaml_value admin.enabled "$ROOT_DIR/argocd/values.yaml")" == "false" ]]; then
+  log "Log in with Google, with an account named in argocd/values.yaml."
+else
+  log "Log in as admin with the password Argo CD generated at install, then change it and delete"
+  log "the Secret. This script does not print the password."
+  log "  kubectl --context=$ENVIRONMENT -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+fi
 log ""
 log "  tear it down with: scripts/teardown.sh $ENVIRONMENT"
 log "Full log: $LOG_FILE"

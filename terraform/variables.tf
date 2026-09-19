@@ -23,3 +23,9 @@ variable "platform_repository_url" {
   default     = "https://github.com/kavoori/gcp-platform.git"
   description = "This repository, as Argo CD clones it. HTTPS, because GitHub App credentials only work over HTTPS."
 }
+
+variable "google_oauth_client_secret_revision" {
+  type        = number
+  default     = 1
+  description = "Bump by one after adding a new version of the Google OAuth client secret in Secret Manager. Terraform resends a write-only value only when this changes."
+}

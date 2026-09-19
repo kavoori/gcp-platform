@@ -22,10 +22,12 @@ that applies the rest. The order in which things come to exist:
 2. **`terraform/` here is applied.** Four things happen, in this order:
    1. The `argocd` namespace is created, carrying the label that lets it attach a route to the
       shared Gateway later.
-   2. A Kubernetes Secret is written into that namespace holding the GitHub App's credentials:
-      the App ID, the installation ID, and the private key, which Terraform reads from Secret
-      Manager for the length of the apply and never stores. Argo CD will find this Secret by its
-      label and use it for every repository under `github.com/kavoori`.
+   2. Two Kubernetes Secrets are written into that namespace. One holds the GitHub App's
+      credentials: the App ID, the installation ID, and the private key. Argo CD finds it by its
+      label and uses it for every repository under the GitHub owner. The other holds the client
+      secret of the OAuth client Argo CD is registered with at Google, which Argo CD's login
+      configuration refers to by name. Both values are read from Secret Manager for the length
+      of the apply and never stored.
    3. The Argo CD Helm chart is installed, with the values in `argocd/values.yaml`.
    4. A second, tiny Helm release creates one Argo CD `Application` object named `root`, whose
       only instruction is: read the `apps/` directory of this repository and apply whatever is
@@ -79,8 +81,8 @@ teardown deletes.
 | `versions.tf` | Pins Terraform to 1.16 and the three providers: Google, Kubernetes, Helm |
 | `backend.tf` | Where this root's state lives. Same bucket as `terraform-gcp`, its own prefix |
 | `providers.tf` | The `locals` block that names this root: environment, project, shared project, region and GitHub owner, with the cluster name derived from the environment. Finds the cluster by name with a data source, takes a short-lived token from the same Google login, and points the Kubernetes and Helm providers at the cluster's DNS endpoint. Nothing here reads `terraform-gcp`'s state |
-| `variables.tf` | The GitHub App's ID and installation ID, neither secret, and a revision number that is bumped to make Terraform resend the key after a rotation |
-| `argocd.tf` | The four objects, in order: the namespace, the credential Secret written with write-only arguments, the Argo CD Helm release, allowed to take ownership of objects Argo CD has since applied so a second apply is the recovery path, and the second release that creates the `root` Application |
+| `variables.tf` | The GitHub App's ID and installation ID, neither secret, and two revision numbers, bumped to make Terraform resend the GitHub key or the Google client secret after a rotation |
+| `argocd.tf` | The five objects, in order: the namespace, the GitHub credential Secret and the Google client secret, both written with write-only arguments and read from Secret Manager for the length of the apply, the Argo CD Helm release, allowed to take ownership of objects Argo CD has since applied so a second apply is the recovery path, and the second release that creates the `root` Application |
 | `root-application/` | The tiny chart for that second release: one `Application` template, its repository URL filled in by Terraform |
 | `outputs.tf` | The URL and the chart version installed |
 | `.tflint.hcl` | Lint rules, the same as `terraform-gcp`'s |

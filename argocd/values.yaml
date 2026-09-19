@@ -20,6 +20,23 @@ configs:
     # Where to send a browser back to after login, and the address the command-line tool uses.
     url: https://argocd.dev.gcp.kavoori.com
 
+    # Log in with Google. Argo CD sends the browser to Google, Google checks who the person is,
+    # and sends the browser back to url above plus /auth/callback with a signed statement of
+    # their email. The client is the registration Argo CD has with Google, made by hand in the
+    # console (bootstrap). Its ID is public. Its secret is in the Secret argocd-google-oauth,
+    # written by Terraform from Secret Manager; the $name:key form is how Argo CD is told to
+    # read a value from another Secret in its namespace.
+    oidc.config: |
+      name: Google
+      issuer: https://accounts.google.com
+      clientID: 728999082455-0l2j5oe9qs455avu4tc5pudthcpri3fu.apps.googleusercontent.com
+      clientSecret: $argocd-google-oauth:clientSecret
+      requestedScopes: ["openid", "profile", "email"]
+
+    # The built-in admin account. On until a Google login has been seen to work; then "false",
+    # and the account, its password and its Secret stop existing.
+    admin.enabled: "true"
+
     # How Argo CD decides whether the ConfigConnector object is healthy. Argo CD ships a health
     # check for most kinds it meets and calls anything else Healthy on sight. This object
     # reports its own state in status.healthy, so Argo CD is told to read that; otherwise a
@@ -34,6 +51,16 @@ configs:
       hs.status = "Progressing"
       hs.message = "waiting for the operator to report healthy"
       return hs
+
+  # Who may do what, once Google has said who they are. Google's login returns no group
+  # information, so people are named by email: the list below is the whole access policy.
+  # Anyone Google admits who is not listed gets the default, read-only.
+  rbac:
+    # Match the g lines below against the email claim rather than the default, groups.
+    scopes: "[email]"
+    policy.default: role:readonly
+    policy.csv: |
+      g, rabi@kavoori.com, role:admin
 
 # Dex is Argo CD's built-in identity broker, needed for GitHub login. Google login talks to Argo
 # CD directly and does not need it, so it stays off until there is a reason to run it.
